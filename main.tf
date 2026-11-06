@@ -1,65 +1,64 @@
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
     }
   }
 }
 
-provider "aws" {
-  region = "us-east-1"
+provider "docker" {}
+
+variable "ssh_public_key_path" {
+  description = "Chave publica autorizada para o usuario ubuntu"
+  type        = string
+  default     = "~/.ssh/iac_lab_key.pub"
 }
 
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd*/ubuntu-*-22.04-amd64-server-*"]
-  }
-}
-
-resource "aws_security_group" "web_sg" {
-  name        = "iac-lab-sg"
-  description = "Permite SSH e HTTP"
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTP (NGINX)"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+# Imagem Ubuntu com SSH (equivalente a AMI)
+resource "docker_image" "ubuntu_ssh" {
+  name = "iac-lab-ubuntu-ssh:latest"
+  build {
+    context = path.module
   }
 }
 
-resource "aws_instance" "web" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t2.micro"
-  key_name               = "vockey" # par de chaves do AWS Academy (labsuser.pem)
-  vpc_security_group_ids = [aws_security_group.web_sg.id]
+# Rede isolada (equivalente a VPC)
+resource "docker_network" "lab_net" {
+  name = "iac-lab-net"
+}
 
-  tags = {
-    Name = "iac-lab-ec2"
+# "Instancia" Ubuntu (equivalente a EC2 t2.micro)
+resource "docker_container" "web" {
+  name     = "iac-lab-web"
+  image    = docker_image.ubuntu_ssh.image_id
+  hostname = "iac-lab-web"
+  memory   = 1024
+
+  networks_advanced {
+    name = docker_network.lab_net.name
+  }
+
+  # Portas expostas (equivalente ao security group): SSH (22) e HTTP (80)
+  ports {
+    internal = 22
+    external = 2222
+  }
+  ports {
+    internal = 80
+    external = 8080
+  }
+
+  upload {
+    file    = "/home/ubuntu/.ssh/authorized_keys"
+    content = file(pathexpand(var.ssh_public_key_path))
   }
 }
 
-output "public_ip" {
-  value = aws_instance.web.public_ip
+output "ssh_command" {
+  value = "ssh -i ~/.ssh/iac_lab_key -p 2222 ubuntu@localhost"
+}
+
+output "nginx_url" {
+  value = "http://localhost:8080"
 }

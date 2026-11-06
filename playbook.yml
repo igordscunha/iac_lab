@@ -1,0 +1,14 @@
+- name: Instalar e iniciar o NGINX
+  hosts: web
+  become: true
+  tasks:
+    - name: Instalar NGINX
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Iniciar o servico NGINX
+      ansible.builtin.service:
+        name: nginx
+        state: started
