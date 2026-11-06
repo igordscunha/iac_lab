@@ -8,3 +8,6 @@ terraform init && terraform apply
 ansible-playbook -i inventory.ini playbook.yml   # http://localhost:8080
 terraform destroy
 ```
+
+## Status
+Laboratório concluído: recursos provisionados, NGINX configurado via Ansible e infraestrutura removida com `terraform destroy`.
